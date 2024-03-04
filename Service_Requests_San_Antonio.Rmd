@@ -1,0 +1,350 @@
+---
+title: "Service_Requests_San_Antonio"
+output:
+  html_document:
+    df_print: paged
+---
+
+Load Data and Packages (Libraries) into R
+```{r}
+calls <- read.csv("allservicecalls.csv")
+library(ggplot2)
+library(tidyverse)
+```
+
+2a. Call the str() function
+```{r}
+str(calls)
+```
+
+2b. The str function displays the number of observations (rows) as 603,236 and number of variables (columns) is 17. For each variable it tells us the data type (character as chr and integer as int), and it also gives the first few values for that column.
+
+
+2b. Functions to get the number of rows and number of columns
+```{r}
+nrow(calls) # number of rows
+ncol(calls) # number of columns
+```
+
+3. 
+
+Look at a table that shows the counts of each district
+```{r}
+table(calls$Council.District) # It orders based on the district number.
+```
+
+
+Sort the districts by calls frequency in descending order
+```{r}
+sort(table(calls$Council.District), decreasing = TRUE)
+```
+
+Select district 5 because it has the most calls and maybe there is a reason for that.
+
+3a. 87791 records.
+```{r}
+district5 <- filter(calls, Council.District==5)
+nrow(district5)
+```
+
+4a. Count the number of missing values in the entire data set using the n_miss function
+```{r}
+library(naniar)
+n_miss(calls)
+```
+There are 20 missing values in the entire data set.
+
+4b. Find the percentage of the rows in the dataframe are complete cases.
+```{r}
+pct_complete_case(calls)
+```
+99.99834% of the rows in this data set are complete cases. A complete case is a row of the data that is entirely complete. That means every element in the row has value even though there is a blank cell.
+
+4c. Convert blank cells to NA
+```{r}
+calls[calls==""] <- NA
+
+```
+4d. We have 60,865 missing values in the data set.
+```{r}
+n_miss(calls)
+```
+
+4e.
+```{r}
+pct_complete_case(calls)
+```
+
+There are 89.92351% rows that are complete cases. The reason this is now lower than the 99.99834% we saw earlier is because originally R treated blank spaces as non-missing values. Now we've converted all the blanks to missing values, so these rows that were originally complete cases are now not complete cases anymore.
+
+4f. Number of missing values and percentage of missing values for each column (default= descending order.)
+```{r}
+miss_var_summary(calls)
+```
+4g.
+```{r}
+calls_open <- filter(calls, CaseStatus=="Open")
+nrow(calls_open)
+```
+The number of missing values in the CLOSEDDATETIME column is 60,625 (from missing value summary-4f answer) which is the same count as the number of observations that have an Open Case Status. All the observations that have a missing CLOSEDDATETIME value are considered an Open Case Status. 
+
+5.a Run the str function on the OPENEDDATETIME and CLOSEDDATETIME variables
+```{r}
+str(calls$OPENEDDATETIME)
+str(calls$CLOSEDDATETIME)
+```
+R treats both of these columns as character type variables, not dates.
+
+5b. Convert the character type dates into actual dates
+```{r}
+calls$OPENEDDATETIME <- as.Date(calls$OPENEDDATETIME, format = "%m/%d/%y")
+calls$CLOSEDDATETIME <- as.Date(calls$CLOSEDDATETIME, format = "%m/%d/%y")
+head(calls$OPENEDDATETIME)
+head(calls$CLOSEDDATETIME)
+```
+The dates have been converted to the format YYYY-MM-DD, which is the default date format in R.
+
+```{r}
+str(calls$OPENEDDATETIME)
+str(calls$CLOSEDDATETIME)
+```
+The str function now shows that the data type for both variables is Date.
+
+5c. Create a duration variable which is the difference between the Closed Date and the Open Date
+```{r}
+calls$duration <- calls$CLOSEDDATETIME-calls$OPENEDDATETIME
+head(calls$duration, n = 20)
+```
+We've calculated the duration in dates which is the difference between the closed date and open date. The duration is missing (NA) if the closed date is also missing.
+
+5d.
+Filter data on a birthday, November 10th
+```{r}
+calls_birthday <- filter(calls, month(calls$OPENEDDATETIME) == 11 & day(calls$OPENEDDATETIME) == 30) # filters on all open dates that are November 10th (month = 11, day = 30)
+nrow(calls_birthday)
+```
+There are 1,996 case requests on November 30th in the entire data set.
+
+```{r}
+head(calls_birthday$OPENEDDATETIME, n=20)
+```
+Shows that the first 20 rows have case requests all occurring on November 30, 2020-2021.
+
+5i.
+```{r}
+sort(table(calls_birthday$Category),decreasing = TRUE)
+```
+Solid Waste Services is the most common category that occurs on the birthday November 30.
+
+6a.
+Explore the Council District variable
+```{r}
+table(calls$Council.District)
+```
+The district should be treated as a categorical variable, not a quantitative variable. The meaning of the number is only for labeling purposes.
+
+Converts the Council District into a character, not an integer. The character type will ensure that this variable is treated as a categorical variable in any analysis done.
+```{r}
+calls$Council.District <- as.character(calls$Council.District)
+str(calls$Council.District)
+```
+
+6b.
+Finding the percentage of requests that came through the Mobile App
+```{r}
+prop.table(table(calls$SourceID)) #getting proportion
+prop.table(table(calls$SourceID))*100 #getting actual percentage
+```
+6.18% of all requests came from the 311 Mobile App. This information was found through the SourceID column.
+
+6c. Find the percent of observations that have the Graffitti category.
+```{r}
+prop.table(table(calls$Category))*1 #getting proportion
+prop.table(table(calls$Category))*100 #getting actual percentage
+```
+0.081% of the observations have the Graffiti category. This information is found in the Category variable.
+
+6d. Find the number of unique REASONNAME values
+```{r}
+unique(calls$REASONNAME) #getting list => There are 25 values.
+length(unique(calls$REASONNAME)) #getting the total number
+```
+There are 25 unique values in the REASONNAME column
+
+7. Remove CASEID from the data frame
+```{r}
+ncol(calls) # number of columns before deletion
+calls <- mutate(calls, CASEID=NULL)
+ncol(calls) # number of columns after deletion
+```
+We have removed the CASEID column, as we see here that the number of columns has been reduced from 18 to 17.
+
+8. Added a column called season that is either Winter, Spring, Summer, or Fall depending on when the OPENEDDATE occurred during the year.
+```{r}
+library(lubridate)
+calls$season <- quarter(calls$OPENEDDATETIME) #creating season column based on the open date.
+
+#rename 
+calls <- mutate(calls, season = case_when(
+  season==1 ~ "Winter",
+  season==2 ~ "Spring",
+  season==3 ~ "Summer",
+  season==4 ~ "Fall"
+))
+head(calls$season, n=20)
+```
+
+9a. Make a barplot of the number of calls in each season
+```{r}
+ggplot(data = calls, aes(x=season, fill = season)) + geom_bar()
+```
+In this barplot, the seasons are shown in alphabetical order, not chronological order. R always shows categorical plots/charts where the categories are listed in alphabetical order by default. 
+
+Order the season variable in the order Winter, Spring, Summer, Fall
+```{r}
+calls$season <- factor(calls$season, levels = c("Winter","Spring","Summer","Fall"))
+ggplot(data = calls, aes(x=season, fill = season)) + geom_bar() +
+  labs(title = "Counts of Service Requests by Season") +
+  xlab("Season") + ylab("Frequency") +
+  scale_fill_manual(values=c("blue","green","yellow","red"))
+```
+
+Now the seasons are in order from Winter, Spring, Summer, and Fall. We also changed the colors for each bar. There are more requests that occur in the first two quarters of the year compared to the last two quarters.
+
+10. Find the 6 most frequent category types from the Category variable
+```{r}
+categorycount <- sort(table(calls$Category), decreasing = TRUE)
+categorycount[1:6]
+```
+
+10a. Filter on these 6 most frequent categories in the data.
+```{r}
+calls_category <- filter(calls, Category %in% names(categorycount[1:6])) #getting only names
+nrow(calls_category)
+sum(categorycount[1:6])
+```
+There are 588,338 observations that have the 6 most common categories.
+
+10b. Plot of the frequency of calls in each category, order in decreasing order by frequency.
+```{r}
+calls_category$Category <- factor(calls_category$Category, levels = names(categorycount[1:6]))
+ggplot(data = calls_category, aes(x=Category, fill = Category)) + geom_bar() +
+  labs(title = "Counts of Service Requests For the Top 6 Categories") +
+  xlab("Category") + ylab("Frequency") +
+  scale_fill_manual(values=c("blue","green","yellow","red", "black", "orange")) + scale_x_discrete(guide = guide_axis(n.dodge=3))
+```
+
+10c.Solid Waste Services and Property Management make up the majority of service requests of the top 6, with Animals, Streets and Infrastructure, Traffic Signals and Signs, and Parks not as frequent as the first two categories.
+
+
+11. Find the 6 most frequent reason names from the REASONNAME variable
+```{r}
+reasoncount <- sort(table(calls$REASONNAME), decreasing = TRUE)
+reasoncount[1:6]
+```
+
+11a. Filter on these 6 most frequent reason names in the data.
+```{r}
+calls_reason <- filter(calls, REASONNAME %in% names(reasoncount[1:6]))
+nrow(calls_reason)
+sum(reasoncount[1:6])
+```
+
+11b.
+```{r}
+ggplot(data = calls_reason, aes(x=SourceID, fill = SourceID)) + geom_bar() + facet_wrap(~REASONNAME) + 
+  labs(title = "Counts of Service Requests by Source for the Top 6 Reason Names") +
+  xlab("Source") + ylab("Frequency") +
+  theme(axis.text.x = element_blank(),
+        axis.ticks.x = element_blank())
+```
+
+11i. The distribution of SourceID counts is very different across each Reason Name. For the Code Enforcement, the Code Proactive Calls is the highest frequency, while for the other 5 reason names, the Constituent Call is the highest frequency by SourceID. Code Proactive Calls only occurs for the Code Enforcement Reason Name.
+
+12. Histogram of the duration variable, make sure to remove the missing values.
+```{r}
+ggplot(data = filter(calls, !is.na(duration)), aes(x = as.numeric(duration))) +
+  geom_histogram(color = "blue", bins = 50) + labs(title = "Histogram of Service Duration in Days") +
+  xlab("Duration in Days") + ylab("Frequency")
+```
+
+12a. The majority of service requests are completed within 40 days. (2000 days/50 bins)
+
+Take a look at the service requests completed within 1 year.
+```{r}
+ggplot(data = filter(calls, !is.na(duration) & duration < 366 & duration >= 0), aes(x = as.numeric(duration))) +
+  geom_histogram(color = "blue", bins = 50) + labs(title = "Histogram of Service Duration in Days for Service Requests completed within 1 year") +
+  xlab("Duration in Days") + ylab("Frequency")
+```
+
+Majority of service requests completed within 7 days. (365 days/50 bins) This distribution of duration is also heavily skewed right. 
+
+12b. Histogram of the duration variable, with REASONNAME as the fill
+```{r}
+ggplot(data = filter(calls_reason, !is.na(duration)), aes(x = as.numeric(duration), fill = REASONNAME)) +
+  geom_histogram(bins = 50) + labs(title = "Histogram of Service Duration in Days split by Reason Name") +
+  xlab("Duration in Days") + ylab("Frequency")
+```
+Bar plot is telling us the distribution of the Reason name for each bar on this histogram.(Looks like the service request are taking longer duration are more from the Code Enforcement Reason Name.Waste Collection is less time.)
+
+
+```{r}
+ggplot(data = filter(calls_reason, !is.na(duration) & duration < 366 & duration >= 0), aes(x = as.numeric(duration), fill = REASONNAME)) +
+  geom_histogram(bins = 25) + labs(title = "Histogram of Service Duration in Days for Service Requests completed within 1 year split by Reason Name") +
+  xlab("Duration in Days") + ylab("Frequency")
+```
+
+The service requests that are completed very quickly (within 14 days) (365 days/25 bins ) are coming from the Waste Collection Reason Name. Then the service request are taking longer duration are more from the Code Enforcement Reason Name.
+
+
+
+13. Find the 6 most frequent type names from the TYPENAME variable
+```{r}
+typecount <- sort(table(calls$TYPENAME), decreasing = TRUE)
+typecount[1:6]
+```
+
+
+
+Filter on these 6 most frequent type names in the data.
+```{r}
+calls_type <- filter(calls, TYPENAME %in% names(typecount[1:6]))
+nrow(calls_type)
+sum(typecount[1:6])
+```
+
+13a. Bar plot of the frequency for each Category, split by the Type Name.
+```{r}
+calls_type$Category <- factor(calls_type$Category, levels = names(categorycount[1:6]))
+ggplot(data = calls_type, aes(x=Category, fill = TYPENAME)) + geom_bar() +
+  labs(title = "Counts of Service Requests by Category, split by Type") +
+  xlab("Category") + ylab("Frequency") + scale_x_discrete(guide = guide_axis(n.dodge=2))
+```
+
+13b. Each category has different types of services. Solid Waste Services is made up of the Carts, Dead Animal Pickup, and No Pick types. Property Maintenance is made up entirely of Overgrown Yard/Trash, and Animals Category is made up of Aggressive Animals and Stray Animals types.
+
+
+14. Latitude and Longitude from 
+https://latitudelongitude.org/us/san-antonio/
+Latitude = 29.42412, Longitude = -98.49363
+```{r}
+library(leaflet)
+m <- leaflet() %>% addTiles() %>% addCircles(lng= -98.49363, lat= 29.42412)
+m # Print the map
+
+```
+
+15.
+```{r}
+m <- leaflet() %>% addTiles() %>% addCircles(lng= -98.49363, lat= 29.42412) %>% addProviderTiles(providers$OpenTopoMap)
+m # Print the map
+
+```
+
+
+
+```{r}
+m <- leaflet() %>% addTiles() %>% addCircles(lng= -98.49363, lat= 29.42412) %>% addProviderTiles(providers$OpenRailwayMap)
+m # Print the map
+
+```
